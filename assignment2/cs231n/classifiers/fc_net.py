@@ -267,9 +267,11 @@ class FullyConnectedNet(object):
         #       operation; softmax takes place below when computing loss
         # --------------------------------------------------------------------
 
-        affine_cache_dict = dict()  # Store cache of affine forward passes
-        relu_cache_dict = dict()    # Store cache of relu forward passes
-        norm_cache_dict = dict()    # Store cache of batch/layer norm forward passes
+        # Create dictionaries to store cache information
+        affine_cache_dict = dict()
+        relu_cache_dict = dict()
+        norm_cache_dict = dict()
+        dropout_cache_dict = dict()
         out = X # This is first input
 
         # Loop through layers, completing a forward pass for each one
@@ -280,7 +282,6 @@ class FullyConnectedNet(object):
             beta_str = '{}{}'.format('beta', i)
 
             # FORWARD PASS: Affine
-            # --------------------------------------------------------------------
             out, cache_affine = affine_forward(out,
                                                self.params[weight_str], 
                                                self.params[bias_str])
@@ -289,10 +290,8 @@ class FullyConnectedNet(object):
                 # On the final layer, only perform the affine forward pass; break so 
                 # we don't perform perform ReLU, batch/layer norm, or dropout passes
                 break
-            # --------------------------------------------------------------------
 
-            # FORWARD PASS: ReLU, batch/layer norm, and dropout
-            # --------------------------------------------------------------------
+            # FORWARD PASS: batch/layer norm
             if self.normalization is not None:
                 if self.normalization is 'batchnorm':
                     norm_function_forward = batchnorm_forward
@@ -305,12 +304,15 @@ class FullyConnectedNet(object):
                                                         self.params[beta_str], 
                                                         self.bn_params[i-1])
                 norm_cache_dict[i] = cache_norm
+
+            # FORWARD PASS: ReLU
             out, cache_relu = relu_forward(out)
             relu_cache_dict[i] = cache_relu
 
-            # Later, insert dropout forward pass
-
-            # --------------------------------------------------------------------
+            # FORWARD PASS: dropout
+            if self.use_dropout:
+                out, cache_dropout = dropout_forward(out, self.dropout_param)
+                dropout_cache_dict[i] = cache_dropout
 
         scores = out
         ############################################################################
@@ -352,16 +354,19 @@ class FullyConnectedNet(object):
             gamma_str = '{}{}'.format('gamma', i)
             beta_str = '{}{}'.format('beta', i)
 
-            # BACKWARD PASS: ReLU, batch/layer norm, and dropout
-            # --------------------------------------------------------------------
             if i < self.num_layers:
                 # On the final layer, only perform the affine backward 
                 # pass. So, only perform ReLU, batch/layer norm, or 
                 # dropout backward passes when we're NOT on the final layer
 
-                # Later, insert dropout backward pass
+            # BACKWARD PASS: dropout
+                if self.use_dropout:
+                    dout = dropout_backward(dout, dropout_cache_dict[i])
+
+            # BACKWARD PASS: ReLU
                 dout = relu_backward(dout, relu_cache_dict[i])
 
+            # BACKWARD PASS: batch/layer norm
                 if self.normalization is not None:
                     if self.normalization is 'batchnorm':
                         norm_function_backward = batchnorm_backward_alt
@@ -372,14 +377,11 @@ class FullyConnectedNet(object):
                     dout, grads[gamma_str], grads[beta_str] = norm_function_backward(
                                                                 dout,
                                                                 norm_cache_dict[i])
-            # --------------------------------------------------------------------
 
             # BACKWARD PASS: Affine
-            # --------------------------------------------------------------------
             dout, grads[weight_str], grads[bias_str] = affine_backward(
                                                             dout, 
                                                             affine_cache_dict[i])
-            # --------------------------------------------------------------------
 
             # Account for regularization in gradient
             grads[weight_str] += self.reg * self.params[weight_str]
