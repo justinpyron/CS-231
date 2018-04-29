@@ -194,7 +194,9 @@ class FullyConnectedNet(object):
             output_dim = layer_dims[i]
             self.params[weight_str] = weight_scale * np.random.randn(input_dim,output_dim)
             self.params[bias_str] = np.zeros(output_dim)
-            if i < self.num_layers: # Don't perform batchnorm on last layer
+            if self.normalization is not None and i < self.num_layers: 
+                # Don't perform normalization on last layer
+                # Note: these parameters are used for both batch and layer normalization
                 self.params[gamma_str] = np.ones(output_dim)
                 self.params[beta_str] = np.zeros(output_dim)
 
@@ -257,51 +259,59 @@ class FullyConnectedNet(object):
         # layer, etc.                                                              #
         ############################################################################
 
-        # Begin forward pass
-        #===========================================================================
+        # PERFORM FORWARD PASS
+        # --------------------------------------------------------------------
         # Must proceed in correct order, i.e.
         #       affine --> [batch/layer norm] --> relu --> [dropout]
         # Note: Only computes scores for each class; doesn't perform softmax
         #       operation; softmax takes place below when computing loss
-        #===========================================================================
+        # --------------------------------------------------------------------
 
         affine_cache_dict = dict()  # Store cache of affine forward passes
         relu_cache_dict = dict()    # Store cache of relu forward passes
-        batchnorm_cache_dict = dict()    # Store cache of batchnorm forward passes
+        norm_cache_dict = dict()    # Store cache of batch/layer norm forward passes
         out = X # This is first input
 
+        # Loop through layers, completing a forward pass for each one
         for i in range(1,self.num_layers+1):
             weight_str = '{}{}'.format('W', i)
             bias_str = '{}{}'.format('b', i)
             gamma_str = '{}{}'.format('gamma', i)
             beta_str = '{}{}'.format('beta', i)
 
-            # Affine forward pass
-            out, cache_affine = affine_forward(out, 
+            # FORWARD PASS: Affine
+            # --------------------------------------------------------------------
+            out, cache_affine = affine_forward(out,
                                                self.params[weight_str], 
                                                self.params[bias_str])
             affine_cache_dict[i] = cache_affine
-
             if i == self.num_layers:
                 # On the final layer, only perform the affine forward pass; break so 
                 # we don't perform perform ReLU, batch/layer norm, or dropout passes
                 break
+            # --------------------------------------------------------------------
 
-            # ReLU, batch/layer norm, dropout forward passes
-            try:
-                out, cache_batchnorm = batchnorm_forward(out, 
-                                                         self.params[gamma_str], 
-                                                         self.params[beta_str], 
-                                                         self.bn_params[i-1])     # <------------------   This is causing problems
-            except:
-                print('Layer: {}'.format(i))
-                print('self.bn_params[i-1] {}'.format(len(self.bn_params)))
-
+            # FORWARD PASS: ReLU, batch/layer norm, and dropout
+            # --------------------------------------------------------------------
+            if self.normalization is not None:
+                if self.normalization is 'batchnorm':
+                    norm_function_forward = batchnorm_forward
+                elif self.normalization is 'layernorm':
+                    norm_function_forward = layernorm_forward
+                else:
+                    raise ValueError('Invalid normalization type')
+                out, cache_norm = norm_function_forward(out, 
+                                                        self.params[gamma_str], 
+                                                        self.params[beta_str], 
+                                                        self.bn_params[i-1])
+                norm_cache_dict[i] = cache_norm
             out, cache_relu = relu_forward(out)
+            relu_cache_dict[i] = cache_relu
+
             # Later, insert dropout forward pass
 
-            batchnorm_cache_dict[i] = cache_batchnorm
-            relu_cache_dict[i] = cache_relu
+            # --------------------------------------------------------------------
+
         scores = out
         ############################################################################
         #                             END OF YOUR CODE                             #
@@ -329,33 +339,47 @@ class FullyConnectedNet(object):
         # Complete forward pass
         loss, dout = softmax_loss(scores, y)
 
-        # Perform backward pass
+        # PERFORM BACKWARD PASS
+        # --------------------------------------------------------------------
         # Must proceed in correct order, i.e.
         #       [dropout] --> ReLU --> [batch/layer norm] --> affine
+        # --------------------------------------------------------------------
 
+        # Loop through layers in reverse, starting at self.num_layers, ending at 1
         for i in range(self.num_layers, 0, -1):
-            # Loop in reverse, starting at self.num_layers, ending at 1
             weight_str = '{}{}'.format('W', i)
             bias_str = '{}{}'.format('b', i)
             gamma_str = '{}{}'.format('gamma', i)
             beta_str = '{}{}'.format('beta', i)
 
-            # ReLU, batch/layer norm, dropout backward passes
+            # BACKWARD PASS: ReLU, batch/layer norm, and dropout
+            # --------------------------------------------------------------------
             if i < self.num_layers:
-                # On the final layer, only perform the affine backward pass; 
-                # So, only perform ReLU, batch/layer norm, or dropout backward 
-                # passes when we're NOT on the final layer
+                # On the final layer, only perform the affine backward 
+                # pass. So, only perform ReLU, batch/layer norm, or 
+                # dropout backward passes when we're NOT on the final layer
 
                 # Later, insert dropout backward pass
                 dout = relu_backward(dout, relu_cache_dict[i])
-                dout, grads[gamma_str], grads[beta_str] = batchnorm_backward_alt(
-                                                            dout, 
-                                                            batchnorm_cache_dict[i])
 
-            # Affine backward pass
+                if self.normalization is not None:
+                    if self.normalization is 'batchnorm':
+                        norm_function_backward = batchnorm_backward_alt
+                    elif self.normalization is 'layernorm':
+                        norm_function_backward = layernorm_backward
+                    else:
+                        raise ValueError('Invalid normalization type')
+                    dout, grads[gamma_str], grads[beta_str] = norm_function_backward(
+                                                                dout,
+                                                                norm_cache_dict[i])
+            # --------------------------------------------------------------------
+
+            # BACKWARD PASS: Affine
+            # --------------------------------------------------------------------
             dout, grads[weight_str], grads[bias_str] = affine_backward(
                                                             dout, 
                                                             affine_cache_dict[i])
+            # --------------------------------------------------------------------
 
             # Account for regularization in gradient
             grads[weight_str] += self.reg * self.params[weight_str]

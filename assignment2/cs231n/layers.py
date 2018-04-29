@@ -189,7 +189,6 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         running_mean = momentum * running_mean + (1 - momentum) * mean
         running_var = momentum * running_var + (1 - momentum) * var
 
-        # cache = (x, x_normal, mean, var, gamma, beta, eps, sigma)
         cache = x_normal, sigma, gamma
         #######################################################################
         #                           END OF YOUR CODE                          #
@@ -244,11 +243,6 @@ def batchnorm_backward(dout, cache):
     # Unpack cache
     x_normal, sigma, gamma = cache
     N, D = x_normal.shape
-
-    # d_x_normal = np.multiply(dout, gamma) # multiply each row of dout by gamma
-    # d_var = ((x - mean) * (d_x_normal)).sum(axis=0) * (-0.5) * ((var + eps)**(-1.5))
-    # d_mean = d_x_normal.sum(axis=0) * -1. / ((var + eps)**0.5) \
-    #          + d_var * -2 * (x - mean).mean(axis=0)
 
     d_x_normal = np.multiply(dout, gamma) # multiply each row of dout by gamma
     d_var = -0.5 * (x_normal * d_x_normal).sum(axis=0) / (sigma**2)
@@ -335,7 +329,13 @@ def layernorm_forward(x, gamma, beta, ln_param):
     # transformations you could perform, that would enable you to copy over   #
     # the batch norm code and leave it almost unchanged?                      #
     ###########################################################################
-    pass
+    N, D = x.shape
+    mean = x.mean(axis=1).reshape((N,1))
+    var = x.var(axis=1).reshape((N,1))
+    sigma = np.sqrt(var + eps)
+    x_normal = (x - mean)/sigma
+    out = np.multiply(x_normal, gamma) + beta
+    cache = x_normal, sigma, gamma
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -366,7 +366,15 @@ def layernorm_backward(dout, cache):
     # implementation of batch normalization. The hints to the forward pass    #
     # still apply!                                                            #
     ###########################################################################
-    pass
+    x_normal, sigma, gamma = cache # Unpack cache
+    N,D = dout.shape
+    d_x_normal = np.multiply(dout, gamma)
+    dx = (d_x_normal \
+         - d_x_normal.mean(axis=1).reshape((N,1)) \
+         - np.multiply(x_normal, (d_x_normal * x_normal).mean(axis=1).reshape((N,1))) \
+         )/sigma
+    dgamma = (x_normal * dout).sum(axis=0)
+    dbeta = dout.sum(axis=0)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
