@@ -182,7 +182,22 @@ class FullyConnectedNet(object):
         # beta2, etc. Scale parameters should be initialized to ones and shift     #
         # parameters should be initialized to zeros.                               #
         ############################################################################
-        pass
+
+        # Initialize affine layer parameters (i.e. weights and biases)
+        layer_dims = [input_dim] + hidden_dims + [num_classes]
+        for i in range(1, self.num_layers+1): # have indexing start at 1
+            weight_str = '{}{}'.format('W', i)
+            bias_str = '{}{}'.format('b', i)
+            gamma_str = '{}{}'.format('gamma', i)            
+            beta_str = '{}{}'.format('beta', i)
+            input_dim = layer_dims[i-1]
+            output_dim = layer_dims[i]
+            self.params[weight_str] = weight_scale * np.random.randn(input_dim,output_dim)
+            self.params[bias_str] = np.zeros(output_dim)
+            if i < self.num_layers: # Don't perform batchnorm on last layer
+                self.params[gamma_str] = np.ones(output_dim)
+                self.params[beta_str] = np.zeros(output_dim)
+
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -241,7 +256,53 @@ class FullyConnectedNet(object):
         # self.bn_params[1] to the forward pass for the second batch normalization #
         # layer, etc.                                                              #
         ############################################################################
-        pass
+
+        # Begin forward pass
+        #===========================================================================
+        # Must proceed in correct order, i.e.
+        #       affine --> [batch/layer norm] --> relu --> [dropout]
+        # Note: Only computes scores for each class; doesn't perform softmax
+        #       operation; softmax takes place below when computing loss
+        #===========================================================================
+
+        affine_cache_dict = dict()  # Store cache of affine forward passes
+        relu_cache_dict = dict()    # Store cache of relu forward passes
+        batchnorm_cache_dict = dict()    # Store cache of batchnorm forward passes
+        out = X # This is first input
+
+        for i in range(1,self.num_layers+1):
+            weight_str = '{}{}'.format('W', i)
+            bias_str = '{}{}'.format('b', i)
+            gamma_str = '{}{}'.format('gamma', i)
+            beta_str = '{}{}'.format('beta', i)
+
+            # Affine forward pass
+            out, cache_affine = affine_forward(out, 
+                                               self.params[weight_str], 
+                                               self.params[bias_str])
+            affine_cache_dict[i] = cache_affine
+
+            if i == self.num_layers:
+                # On the final layer, only perform the affine forward pass; break so 
+                # we don't perform perform ReLU, batch/layer norm, or dropout passes
+                break
+
+            # ReLU, batch/layer norm, dropout forward passes
+            try:
+                out, cache_batchnorm = batchnorm_forward(out, 
+                                                         self.params[gamma_str], 
+                                                         self.params[beta_str], 
+                                                         self.bn_params[i-1])     # <------------------   This is causing problems
+            except:
+                print('Layer: {}'.format(i))
+                print('self.bn_params[i-1] {}'.format(len(self.bn_params)))
+
+            out, cache_relu = relu_forward(out)
+            # Later, insert dropout forward pass
+
+            batchnorm_cache_dict[i] = cache_batchnorm
+            relu_cache_dict[i] = cache_relu
+        scores = out
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -257,16 +318,58 @@ class FullyConnectedNet(object):
         # data loss using softmax, and make sure that grads[k] holds the gradients #
         # for self.params[k]. Don't forget to add L2 regularization!               #
         #                                                                          #
-        # When using batch/layer normalization, you don't need to regularize the scale   #
-        # and shift parameters.                                                    #
+        # When using batch/layer normalization, you don't need to regularize the   #
+        # scale and shift parameters.                                              #
         #                                                                          #
         # NOTE: To ensure that your implementation matches ours and you pass the   #
         # automated tests, make sure that your L2 regularization includes a factor #
         # of 0.5 to simplify the expression for the gradient.                      #
         ############################################################################
-        pass
+
+        # Complete forward pass
+        loss, dout = softmax_loss(scores, y)
+
+        # Perform backward pass
+        # Must proceed in correct order, i.e.
+        #       [dropout] --> ReLU --> [batch/layer norm] --> affine
+
+        for i in range(self.num_layers, 0, -1):
+            # Loop in reverse, starting at self.num_layers, ending at 1
+            weight_str = '{}{}'.format('W', i)
+            bias_str = '{}{}'.format('b', i)
+            gamma_str = '{}{}'.format('gamma', i)
+            beta_str = '{}{}'.format('beta', i)
+
+            # ReLU, batch/layer norm, dropout backward passes
+            if i < self.num_layers:
+                # On the final layer, only perform the affine backward pass; 
+                # So, only perform ReLU, batch/layer norm, or dropout backward 
+                # passes when we're NOT on the final layer
+
+                # Later, insert dropout backward pass
+                dout = relu_backward(dout, relu_cache_dict[i])
+                dout, grads[gamma_str], grads[beta_str] = batchnorm_backward_alt(
+                                                            dout, 
+                                                            batchnorm_cache_dict[i])
+
+            # Affine backward pass
+            dout, grads[weight_str], grads[bias_str] = affine_backward(
+                                                            dout, 
+                                                            affine_cache_dict[i])
+
+            # Account for regularization in gradient
+            grads[weight_str] += self.reg * self.params[weight_str]
+
+            # Account for regularization in loss
+            loss += 0.5 * self.reg * np.square(self.params[weight_str]).sum()
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
 
         return loss, grads
+
+
+
+
+
+

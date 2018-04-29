@@ -176,11 +176,21 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #                                                                     #
         # Note that though you should be keeping track of the running         #
         # variance, you should normalize the data based on the standard       #
-        # deviation (square root of variance) instead!                        # 
+        # deviation (square root of variance) instead!                        #
         # Referencing the original paper (https://arxiv.org/abs/1502.03167)   #
         # might prove to be helpful.                                          #
         #######################################################################
-        pass
+        mean = x.mean(axis=0)
+        var = x.var(axis=0)
+        sigma = np.sqrt(var + eps)
+        x_normal = (x - mean)/sigma
+        out = np.multiply(x_normal, gamma) + beta
+
+        running_mean = momentum * running_mean + (1 - momentum) * mean
+        running_var = momentum * running_var + (1 - momentum) * var
+
+        # cache = (x, x_normal, mean, var, gamma, beta, eps, sigma)
+        cache = x_normal, sigma, gamma
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -191,7 +201,8 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        pass
+        x_normal = (x - running_mean)/np.sqrt(running_var + eps)
+        out = np.multiply(x_normal, gamma) + beta
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -229,7 +240,24 @@ def batchnorm_backward(dout, cache):
     # Referencing the original paper (https://arxiv.org/abs/1502.03167)       #
     # might prove to be helpful.                                              #
     ###########################################################################
-    pass
+
+    # Unpack cache
+    x_normal, sigma, gamma = cache
+    N, D = x_normal.shape
+
+    # d_x_normal = np.multiply(dout, gamma) # multiply each row of dout by gamma
+    # d_var = ((x - mean) * (d_x_normal)).sum(axis=0) * (-0.5) * ((var + eps)**(-1.5))
+    # d_mean = d_x_normal.sum(axis=0) * -1. / ((var + eps)**0.5) \
+    #          + d_var * -2 * (x - mean).mean(axis=0)
+
+    d_x_normal = np.multiply(dout, gamma) # multiply each row of dout by gamma
+    d_var = -0.5 * (x_normal * d_x_normal).sum(axis=0) / (sigma**2)
+    d_mean = d_x_normal.sum(axis=0) * -1./sigma
+
+    dx = d_x_normal/sigma + np.multiply(2*(x_normal * sigma)/N, d_var) + d_mean/N
+    dgamma = (x_normal * dout).sum(axis=0)
+    dbeta = dout.sum(axis=0)
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -245,7 +273,7 @@ def batchnorm_backward_alt(dout, cache):
     normalizaton backward pass on paper and simplify as much as possible. You
     should be able to derive a simple expression for the backward pass. 
     See the jupyter notebook for more hints.
-     
+    
     Note: This implementation should expect to receive the same cache variable
     as batchnorm_backward, but might not use all of the values in the cache.
 
@@ -260,7 +288,12 @@ def batchnorm_backward_alt(dout, cache):
     # should be able to compute gradients with respect to the inputs in a     #
     # single statement; our implementation fits on a single 80-character line.#
     ###########################################################################
-    pass
+    x_normal, sigma, gamma = cache # Unpack cache
+    d_x_normal = np.multiply(dout, gamma) # multiply each row of dout by gamma
+    dx = (d_x_normal - d_x_normal.mean(axis=0) - np.multiply(
+                x_normal, (d_x_normal * x_normal).mean(axis=0)))/sigma
+    dgamma = (x_normal * dout).sum(axis=0)
+    dbeta = dout.sum(axis=0)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -696,7 +729,7 @@ def svm_loss(x, y):
     dx /= N
     return loss, dx
 
-a
+
 def softmax_loss(x, y):
     """
     Computes the loss and gradient for softmax classification.
