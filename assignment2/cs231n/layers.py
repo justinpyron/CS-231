@@ -690,7 +690,17 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # vanilla version of batch normalization you implemented above.           #
     # Your implementation should be very short; ours is less than five lines. #
     ###########################################################################
-    pass
+
+    # Code to help understand how the below reshaping works
+    # N,C,H,W = 2,3,3,3
+    # a = np.arange(N*C*H*W).reshape((N,C,W,H))
+    # b = a.reshape(N,C,-1).swapaxes(0,1).reshape(C,-1)
+    # c = b.reshape((C,N,-1)).swapaxes(0,1).reshape((N,C,H,W))
+
+    N,C,H,W = x.shape
+    x_reshaped = x.reshape(N,C,-1).swapaxes(0,1).reshape(C,-1).T
+    out, cache = batchnorm_forward(x_reshaped, gamma, beta, bn_param)
+    out = out.T.reshape((C,N,-1)).swapaxes(0,1).reshape(x.shape)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -720,7 +730,10 @@ def spatial_batchnorm_backward(dout, cache):
     # vanilla version of batch normalization you implemented above.           #
     # Your implementation should be very short; ours is less than five lines. #
     ###########################################################################
-    pass
+    N,C,H,W = dout.shape
+    dout_reshaped = dout.reshape(N,C,-1).swapaxes(0,1).reshape(C,-1).T
+    dx, dgamma, dbeta = batchnorm_backward_alt(dout_reshaped, cache)
+    dx = dx.T.reshape((C,N,-1)).swapaxes(0,1).reshape(dout.shape)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
