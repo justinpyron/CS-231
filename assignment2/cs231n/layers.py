@@ -501,12 +501,12 @@ def conv_forward_naive(x, w, b, conv_param):
     p = conv_param.get('pad', 0)
     N,C,H,W = x.shape
     F,_,HH,WW = w.shape
-    H_new = 1 + (H + 2*p - HH)//s
+    H_new = 1 + (H + 2*p - HH)//s  # division without remainder
     W_new = 1 + (W + 2*p - WW)//s
 
     x_pad = np.pad(x,[(0,0),(0,0),(p,p),(p,p)], mode='constant')
     out = np.zeros((N,F,H_new,W_new))
-    filters = w.reshape((F,-1))  # move this outside the loop
+    filters = w.reshape((F,-1))
 
     # Slide filters across height/width dimension
     for row in range(0, H_new*s, s): # step size = stride = s
@@ -541,7 +541,33 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
-    pass
+
+    x, w, b, conv_param = cache
+
+    s = conv_param.get('stride')
+    p = conv_param.get('pad')
+    N,C,H,W = x.shape
+    F,_,HH,WW = w.shape
+    H_new = 1 + (H + 2*p - HH)//s  # division without remainder
+    W_new = 1 + (W + 2*p - WW)//s
+
+    x_pad = np.pad(x,[(0,0),(0,0),(p,p),(p,p)], mode='constant')
+    filters = w.reshape((F,-1)) # flattened filters; shape = (F,C*HH*WW)
+    dx = np.zeros_like(x_pad) # later, cut off padding
+    dw = np.zeros_like(w)
+    db = np.zeros_like(b)
+
+    # Slide filters across height/width dimension
+    for row in range(0, H_new*s, s): # step size = stride = s
+        for col in range(0, W_new*s, s):
+            dout_flat = dout[:,:,int(row/s),int(col/s)].reshape((N,-1))
+            x_flat = x_pad[:,:,row:(row+HH), col:(col+WW)].reshape((N,-1))
+            dx[:,:,row:(row+HH), col:(col+WW)] += dout_flat.dot(filters).reshape((N,C,HH,WW))
+            dw += dout_flat.T.dot(x_flat).reshape(w.shape)
+            db += dout_flat.sum(axis=0)
+
+    # Cut off padding from dx
+    dx = dx[:,:,p:-p,p:-p]
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -571,7 +597,22 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # TODO: Implement the max-pooling forward pass                            #
     ###########################################################################
-    pass
+    N,C,H,W = x.shape
+    pool_height = pool_param['pool_height']
+    pool_width = pool_param['pool_width']
+    s = pool_param['stride']
+    H_new = 1 + (H - pool_height)//s
+    W_new = 1 + (W- pool_width)//s
+
+    out = np.zeros((N,C,H_new,W_new))
+
+    # Slide across height/width dimension
+    for row in range(0, H_new*s, s): # step size = stride = s
+        for col in range(0, W_new*s, s):
+            # Take maximum over axes 2 and 3, i.e. along 
+            # height and width for each channel of all images
+            out[:,:,int(row/s),int(col/s)] = np.amax(
+                x[:,:,row:(row+pool_height),col:(col+pool_width)], axis=(2,3))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -594,7 +635,24 @@ def max_pool_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the max-pooling backward pass                           #
     ###########################################################################
-    pass
+    x, pool_param = cache
+
+    N,C,H,W = x.shape
+    pool_height = pool_param['pool_height']
+    pool_width = pool_param['pool_width']
+    s = pool_param['stride']
+    H_new = 1 + (H - pool_height)//s
+    W_new = 1 + (W- pool_width)//s
+
+    dx = np.zeros_like(x)
+
+    # Slide across height/width dimension
+    for row in range(0, H_new*s, s): # step size = stride = s
+        for col in range(0, W_new*s, s):
+            subset = x[:,:,row:(row+pool_height),col:(col+pool_width)]
+            maximum = np.amax(subset, axis=(2,3)).reshape((N,C,1,1))
+            dout_subset = dout[:,:,int(row/s),int(col/s)].reshape((N,C,1,1))
+            dx[:,:,row:(row+pool_height),col:(col+pool_width)] = (subset == maximum) * dout_subset
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
