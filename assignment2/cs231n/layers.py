@@ -497,7 +497,26 @@ def conv_forward_naive(x, w, b, conv_param):
     # TODO: Implement the convolutional forward pass.                         #
     # Hint: you can use the function np.pad for padding.                      #
     ###########################################################################
-    pass
+    s = conv_param.get('stride', 1)
+    p = conv_param.get('pad', 0)
+    N,C,H,W = x.shape
+    F,_,HH,WW = w.shape
+    H_new = 1 + (H + 2*p - HH)//s
+    W_new = 1 + (W + 2*p - WW)//s
+
+    x_pad = np.pad(x,[(0,0),(0,0),(p,p),(p,p)], mode='constant')
+    out = np.zeros((N,F,H_new,W_new))
+    filters = w.reshape((F,-1))  # move this outside the loop
+
+    # Slide filters across height/width dimension
+    for row in range(0, H_new*s, s): # step size = stride = s
+        for col in range(0, W_new*s, s):
+            # Reshape x data into window variable
+            # window is a 2-d np array with N rows; each row is the collapsed
+            # values of all entries in the window for one image
+            window = x_pad[:, :, row:(row+HH), col:(col+WW)].reshape((N,-1))
+            # Note: need to adjust index of out since it is of different shape
+            out[:,:,int(row/s),int(col/s)] = window.dot(filters.T) + b
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
