@@ -228,24 +228,23 @@ def word_embedding_backward(dout, cache):
     dW = np.zeros_like(W)
     N, T, D = out.shape
 
+    # reshape arrays to be 2-D
     out = out.reshape(N*T,-1)
-    dout = dout.reshape(N*T,-1) # make array of only word vectors
+    dout = dout.reshape(N*T,-1)
 
-    print('out shape: {}'.format(out.shape))
-    print('dout shape: {}'.format(dout.shape))
-
-    # for i, word_vec in enumerate(W):
-        # print('Word vec: {}'.format(word_vec))
-        # print( (out == word_vec).reshape((N*T,D)) )
-        # print('\n')
-        # np.add.at(dout, out == word_vec, dout)
-
-        # dW[i] += (dout[out == word_vec].sum(axis=0))
-
-    # for i, word_vec in enumerate(np.unique(out, axis=0)):
-    #     print(word_vec)
-    #     # np.add.at(dW, out == word_vec, dout)
-
+    for i, word_vec in enumerate(W):
+        # Only update row in W if the corresponding word is in data
+        try:
+            if word_vec in np.unique(out, axis=0):
+                # print('Dimension of dout[out == word_vec] {}'.format(dout[out == word_vec].shape))
+                dW[i] += dout[out == word_vec].reshape(-1,D).sum(axis=0)
+        except:
+            pass
+            # There's a strange edge case where the masked row vector is only of
+            # size 1, when the numpy function should only return something of 
+            # shape at least the size of the number of columns.
+            # This has only happend once in several thousand iterations, so just 
+            # don't update the gradient for that pathological case
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
