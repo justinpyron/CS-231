@@ -292,7 +292,19 @@ def lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b):
     # TODO: Implement the forward pass for a single timestep of an LSTM.        #
     # You may want to use the numerically stable sigmoid implementation above.  #
     #############################################################################
-    pass
+    N, D = x.shape
+    N, H = prev_h.shape
+
+    a = x.dot(Wx) + prev_h.dot(Wh) + b
+    a_i, a_f, a_o, a_g = a[:,:H], a[:,H:(2*H)], a[:,(2*H):(3*H)], a[:,(3*H):]
+    # Note: tanh(x) = 2 sigmoid(2x) - 1
+    i, f, o, g = sigmoid(a_i), sigmoid(a_f), sigmoid(a_o), 2 * sigmoid(2*a_g) - 1.
+
+    next_c = f * prev_c + i * g
+    tanh_next_c = 2*sigmoid(2*next_c) - 1.
+    next_h = o * tanh_next_c
+
+    cache = (prev_h, prev_c, x, Wx, Wh, i, f, o, g, tanh_next_c)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -324,7 +336,38 @@ def lstm_step_backward(dnext_h, dnext_c, cache):
     # HINT: For sigmoid and tanh you can compute local derivatives in terms of  #
     # the output value from the nonlinearity.                                   #
     #############################################################################
-    pass
+
+    # unpack cache
+    prev_h, prev_c, x, Wx, Wh, i, f, o, g, tanh_next_c = cache
+
+    y = (dnext_c + (1. - tanh_next_c**2) * o * dnext_h)
+    dprev_c = f * y
+    di = g * y
+    df = prev_c * y
+    do = tanh_next_c * dnext_h
+    dg = i * y
+
+    di = i * (1. - i) * di
+    df = f * (1. - f) * df
+    do = o * (1. - o) * do
+    dg = (1. - g**2) * dg
+
+    dout = np.concatenate([di, df, do, dg], axis=1)
+    dx = dout.dot(Wx.T)
+    dprev_h = dout.dot(Wh.T)
+    dWx = x.T.dot(dout)
+    dWh = prev_h.T.dot(dout)
+    db = dout.sum(axis=0)
+
+    # print('di shape: {}'.format(di.shape))
+    # print('df shape: {}'.format(df.shape))
+    # print('do shape: {}'.format(do.shape))
+    # print('dg shape: {}'.format(dg.shape))
+    # print('dout shape: {}'.format(dout.shape))
+    # print('dWx shape: {}'.format(dWx.shape))
+    # print('dWh shape: {}'.format(dWh.shape))
+
+
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
