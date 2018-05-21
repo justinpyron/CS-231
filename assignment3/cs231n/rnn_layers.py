@@ -148,6 +148,8 @@ def rnn_backward(dh, cache):
     ##############################################################################
     N, T, H = dh.shape
     N, D = cache[0][0].shape # cache is a list containing sub-cache tuples
+
+    # Create gradient variables
     dx = np.zeros((N, T, D))
     dWx = np.zeros((D, H))
     dWh = np.zeros((H, H))
@@ -163,7 +165,6 @@ def rnn_backward(dh, cache):
         db += _db
         dprev_h = _dprev_h # update dprev_h for use in previous time step
     dh0 = dprev_h
-
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -191,7 +192,10 @@ def word_embedding_forward(x, W):
     #                                                                            #
     # HINT: This can be done in one line using NumPy's array indexing.           #
     ##############################################################################
-    pass
+    N, T = x.shape
+    V, D = W.shape
+    out = W[x.reshape(-1)].reshape(N,T,D)
+    cache = (out, W)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -220,7 +224,28 @@ def word_embedding_backward(dout, cache):
     # Note that words can appear more than once in a sequence.                   #
     # HINT: Look up the function np.add.at                                       #
     ##############################################################################
-    pass
+    out, W = cache
+    dW = np.zeros_like(W)
+    N, T, D = out.shape
+
+    out = out.reshape(N*T,-1)
+    dout = dout.reshape(N*T,-1) # make array of only word vectors
+
+    print('out shape: {}'.format(out.shape))
+    print('dout shape: {}'.format(dout.shape))
+
+    # for i, word_vec in enumerate(W):
+        # print('Word vec: {}'.format(word_vec))
+        # print( (out == word_vec).reshape((N*T,D)) )
+        # print('\n')
+        # np.add.at(dout, out == word_vec, dout)
+
+        # dW[i] += (dout[out == word_vec].sum(axis=0))
+
+    # for i, word_vec in enumerate(np.unique(out, axis=0)):
+    #     print(word_vec)
+    #     # np.add.at(dW, out == word_vec, dout)
+
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
