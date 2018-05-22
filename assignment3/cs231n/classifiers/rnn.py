@@ -151,7 +151,10 @@ class CaptioningRNN(object):
         x, word_cache = word_embedding_forward(captions_in, W_embed)
 
         # Step (3)
-        h, h_cache = rnn_forward(x, h0, Wx, Wh, b)
+        if self.cell_type == 'rnn':
+            h, h_cache = rnn_forward(x, h0, Wx, Wh, b)
+        else:
+            h, h_cache = lstm_forward(x, h0, Wx, Wh, b)
 
         # Step (4)
         scores, scores_cache = temporal_affine_forward(h, W_vocab, b_vocab)
@@ -167,7 +170,10 @@ class CaptioningRNN(object):
         grads['W_vocab'], grads['b_vocab'] = dW_vocab, db_vocab
 
         # Step (3)
-        dout, dout_h0, dWx, dWh, db = rnn_backward(dout, h_cache)
+        if self.cell_type == 'rnn':
+            dout, dout_h0, dWx, dWh, db = rnn_backward(dout, h_cache)
+        else:
+            dout, dout_h0, dWx, dWh, db = lstm_backward(dout, h_cache)
         grads['Wx'], grads['Wh'], grads['b'] = dWx, dWh, db
 
         # Step (2)
@@ -181,7 +187,7 @@ class CaptioningRNN(object):
         #                             END OF YOUR CODE                             #
         ############################################################################
 
-        return loss, grads
+        return loss, grads 
 
 
     def sample(self, features, max_length=30):
@@ -242,9 +248,13 @@ class CaptioningRNN(object):
         # you are using an LSTM, initialize the first cell state to zeros.        #
         ###########################################################################
 
+
         # Initialize input words (all start token) and h0
+        H, V = W_vocab.shape
         h, _ = affine_forward(features, W_proj, b_proj)
         x = (self._start * np.ones((N,1))).astype(int)
+        if self.cell_type == 'lstm':
+            c = np.zeros((N,H))
 
         for t in range(max_length):
             # Step (1)
@@ -253,7 +263,10 @@ class CaptioningRNN(object):
             x = x.squeeze(axis=1)
 
             # Step (2)
-            h, _ = rnn_step_forward(x, h, Wx, Wh, b)
+            if self.cell_type == 'rnn':
+                h, _ = rnn_step_forward(x, h, Wx, Wh, b)
+            else:
+                h, c, _ = lstm_step_forward(x, h, c, Wx, Wh, b)
 
             # Step (3)
             scores, _ = affine_forward(h, W_vocab, b_vocab)
