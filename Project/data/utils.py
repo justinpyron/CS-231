@@ -49,7 +49,7 @@ def trained_model(dataset, path_to_pretrained=None):
     - path_to_pretrained: a string indicating path to file where pre-trained 
                           parameter weights are stored
     '''
-    assert (dataset == 'cifar' or dataset == 'mnist'), 
+    assert (dataset == 'cifar' or dataset == 'mnist'), \
                 'Model must either be \'cifar\' or \'mnist\''
 
     if path_to_pretrained is None:
@@ -81,7 +81,7 @@ def get_data(dataset, _train=True, _transforms=transforms.ToTensor(), _batch_siz
           are in the same directory as this script
     '''
 
-    assert (dataset == 'cifar' or dataset == 'mnist'), 
+    assert (dataset == 'cifar' or dataset == 'mnist'), \
                 'Dataset must either be \'cifar\' or \'mnist\''
 
     if dataset == 'cifar':
