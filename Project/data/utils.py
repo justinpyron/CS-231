@@ -41,11 +41,31 @@ class cifar(nn.Module):
         return x
 
 
+class mnist(nn.Module):
+    def __init__(self):
+        super(mnist, self).__init__()
+        self.conv1 = nn.Conv2d(1, 10, kernel_size=3)
+        self.conv2 = nn.Conv2d(10, 10, kernel_size=3)
+        self.conv3 = nn.Conv2d(10, 20, kernel_size=3)
+        self.conv4 = nn.Conv2d(20, 20, kernel_size=3)
+        self.fc1 = nn.Linear(20*4*4, 50)
+        self.fc2 = nn.Linear(50, 10)
+
+    def forward(self, x):
+        x = F.relu(F.max_pool2d( self.conv2(self.conv1(x)), 2))
+        x = F.relu(F.max_pool2d( self.conv4(self.conv3(x)), 2))
+        x = x.view(-1, 20*4*4)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return F.log_softmax(x, dim=1)
+
+
+
 def trained_model(dataset, path_to_pretrained=None):
     '''
-    Return a pre-trained model of type dataset
+    Return a pre-trained model corresponding to either CIFAR10 or MNIST
     Arguments:
-    - dataset: string equal to 'cifar' or 'mnist' specifying the type of model to load
+    - dataset: string equal to 'cifar' or 'mnist' specifying the type of model
     - path_to_pretrained: a string indicating path to file where pre-trained 
                           parameter weights are stored
     '''
@@ -53,7 +73,10 @@ def trained_model(dataset, path_to_pretrained=None):
                 'Model must either be \'cifar\' or \'mnist\''
 
     if path_to_pretrained is None:
-        path_to_pretrained = 'cifar_model_first_attempt' if dataset == 'cifar' else 'FILL_IN_MNIST_PRETRAINED_MODEL_LATER'    # <-------------------------
+        if dataset == 'cifar':
+            path_to_pretrained = 'cifar_model_first_attempt'
+        if dataset == 'mnist':
+            path_to_pretrained = 'mnist_nn_model'
 
     if dataset == 'cifar':
         # Initialize model
@@ -63,8 +86,11 @@ def trained_model(dataset, path_to_pretrained=None):
         return model
 
     if dataset == 'mnist':
-        print('You still need to set up MNIST functionality') # <-------------------------
-        return
+        # Initialize model
+        model = mnist()
+        # Load pre-trained parameters
+        model.load_state_dict(torch.load(path_to_pretrained)['state_dict'])
+        return model
 
 
 
@@ -86,12 +112,11 @@ def get_data(dataset, _train=True, _transforms=transforms.ToTensor(), _batch_siz
 
     if dataset == 'cifar':
         data = torchvision.datasets.CIFAR10('./', train=_train, transform=_transforms)
-        dataloader = DataLoader(data, batch_size=_batch_size, shuffle=True, num_workers=1)
 
     if dataset == 'mnist':
-        print('You still need to set up MNIST functionality') # <-------------------------
-        return
+        data = torchvision.datasets.MNIST('./', train=_train, transform=_transforms)
 
+    dataloader = DataLoader(data, batch_size=_batch_size, shuffle=True, num_workers=1)
     return dataloader
 
 
