@@ -15,6 +15,9 @@ import matplotlib.pyplot as plt
 
 
 class cifar(nn.Module):
+    '''
+    Model used to generate adversarial CIFAR images
+    '''
     def __init__(self):
         super(cifar, self).__init__()
         self.conv1 = nn.Conv2d(3, 20, kernel_size=3, padding=1)
@@ -42,6 +45,9 @@ class cifar(nn.Module):
 
 
 class mnist(nn.Module):
+    '''
+    Model used to generate adversarial MNIST images
+    '''
     def __init__(self):
         super(mnist, self).__init__()
         self.conv1 = nn.Conv2d(1, 10, kernel_size=3)
@@ -121,12 +127,67 @@ def get_data(dataset, _train=True, _transforms=transforms.ToTensor(), _batch_siz
 
 
 
+class Adversary_Data(Dataset):
+    '''
+    A customized data set for adversarial images
+    '''
+    def __init__(self, file_name, original_label, target_label):
+        '''
+        Intialize the adversarial image dataset
+        Args:
+        - file_name: name of file where adversarial data is stored
+        - original_label: the original label of images
+        - target_label: the label that adversaries trick model into predicting
+        '''
+        assert (original_label != target_label), 'Target label must be different from original label!'
+        if '.npz' not in file_name:
+            file_name += '.npz'
+        data = np.load(file_name)
+        
+        original_labels = data['original_labels']
+        target_labels = data['target_labels']
+        mask = (original_labels == original_label) * (target_labels == target_label)
+
+        self.original_labels = torch.from_numpy(original_labels[mask])
+        self.target_labels = torch.from_numpy(target_labels[mask])
+        self.originals = torch.from_numpy(data['original_images'][mask])
+        self.perturbations = torch.from_numpy(data['perturbations'][mask])
+        self.adversaries = torch.from_numpy(data['adversarial_images'][mask])
+        
+        self.len = self.originals.size(0)
+        
+    def __getitem__(self, index):
+        '''
+        Get a sample from the dataset
+        '''
+        original = self.originals[index]
+        pert = self.perturbations[index]
+        adv = self.adversaries[index]
+        orig_label = self.original_labels[index].item()
+        target_label = self.target_labels[index].item()
+        return original, pert, adv, orig_label, target_label
+
+    def __len__(self):
+        '''
+        Total number of samples in the dataset
+        '''
+        return self.len
 
 
+def get_adv_data(file_name, original_label, target_label, batch_size=50):
+    '''
+    Returns a Pytorch dataset object containing data from an adversarial 
+    dataset stored at file specified by file_name
+    Args:
+    - file_name: name of file where adversarial data is stored
+    - original_label: the original label of images
+    - target_label: the label that adversaries trick model into predicting
+    - batch_size: size of batch
+    '''
 
-
-
-
+    data = Adversary_Data(file_name, original_label, target_label)
+    dataloader = DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=1)
+    return dataloader
 
 
 
