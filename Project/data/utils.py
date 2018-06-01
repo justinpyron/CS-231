@@ -122,3 +122,11 @@ def get_data(dataset, _train=True, _transforms=transforms.ToTensor(), _batch_siz
 
 
 
+
+
+
+
+
+
+
+
