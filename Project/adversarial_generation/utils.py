@@ -157,7 +157,7 @@ class Adversary_Data(Dataset):
     '''
     A customized data set for adversarial images
     '''
-    def __init__(self, file_name, original_label, target_label):
+    def __init__(self, file_name, original_label=None, target_label=None):
         '''
         Intialize the adversarial image dataset
         Args:
@@ -165,14 +165,24 @@ class Adversary_Data(Dataset):
         - original_label: the original label of images
         - target_label: the label that adversaries trick model into predicting
         '''
-        assert (original_label != target_label), 'Target label must be different from original label!'
         if '.npz' not in file_name:
             file_name += '.npz'
         data = np.load(file_name)
         
         original_labels = data['original_labels']
         target_labels = data['target_labels']
-        mask = (original_labels == original_label) * (target_labels == target_label)
+
+        # Subset the data
+        if original_label is not None and target_label is not None:
+            assert (original_label != target_label), \
+                'Target label must be different from original label!'
+            mask = (original_labels == original_label) * (target_labels == target_label)
+        elif original_label is not None:
+            mask = (original_labels == original_label)
+        elif target_label is not None:
+            mask = (target_labels == target_label)
+        else:
+            mask = np.ones_like(original_labels, dtype=bool)
 
         self.original_labels = torch.from_numpy(original_labels[mask])
         self.target_labels = torch.from_numpy(target_labels[mask])
@@ -200,7 +210,7 @@ class Adversary_Data(Dataset):
         return self.len
 
 
-def get_adv_data(file_name, original_label, target_label, batch_size=50):
+def get_adv_data(file_name, original_label=None, target_label=None, batch_size=50):
     '''
     Returns a Pytorch dataset object containing data from an adversarial 
     dataset stored at file specified by file_name
