@@ -263,11 +263,11 @@ class Generator:
         target_labels = list()
         
         running_total = 0
+
+        print('Starting first batch...')
         
         # Iterate through dataset
         for i, (image_batch,label_batch) in enumerate(self.data):
-            print('Working on batch {}'.format(i))
-            
             # Generate adversarial images for each class label
             for target in range(10):
                 batch_data = self.fool(image_batch, label_batch, target, epsilon=epsilon, 
@@ -278,8 +278,9 @@ class Generator:
                 adversaries.append(adv.numpy())
                 original_labels.append(orig_label.numpy())
                 target_labels.append(target_label.numpy())
-                
+            
             running_total += orig.size(0)
+            print('Finished batch {}. Generated {}/{} images'.format(i+1, running_total, num_examples))
             if running_total > num_examples:
                 break
         

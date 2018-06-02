@@ -143,10 +143,10 @@ def get_data(dataset, _train=True, _transforms=transforms.ToTensor(), _batch_siz
                 'Dataset must either be \'cifar\' or \'mnist\''
 
     if dataset == 'cifar':
-        data = torchvision.datasets.CIFAR10('./', train=_train, transform=_transforms)
+        data = torchvision.datasets.CIFAR10('./', train=_train, transform=_transforms, download=True)
 
     if dataset == 'mnist':
-        data = torchvision.datasets.MNIST('./', train=_train, transform=_transforms)
+        data = torchvision.datasets.MNIST('./', train=_train, transform=_transforms, download=True)
 
     dataloader = DataLoader(data, batch_size=_batch_size, shuffle=True, num_workers=1)
     return dataloader
