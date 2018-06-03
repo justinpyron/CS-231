@@ -31,12 +31,29 @@ class Dropout_defense:
         self.dataset = dataset
         self.file_name = file_name
 
+        # Load model
         self.model = utils.trained_model(self.dataset)
         self.model.train() # put model in train mode to enable dropout
 
+        # Load data
+        start = time.time()
+        print('Loading data...')
+        self.data = dict()
+        for orig in range(10):
+            for adv in range(10):
+                if adv == orig:
+                    continue
+                print('Loading pair ({},{})'.format(orig,adv))
+                self.data[(orig,adv)] = utils.get_adv_data(self.file_name, 
+                                                           original_label=orig, 
+                                                           target_label=adv,
+                                                           batch_size=1)
+        print('Data loaded. Took {:.1f} seconds.'.format(time.time() - start))
+
+
     def reset_model(self, dropout_prob):
         '''
-        Initialize a new model to use with object's data. This is mainly used
+        Initialize a new model to use with object's data. This is used
         to reset the dropout probability parameter.
         '''
         self.model = utils.trained_model(self.dataset, dropout_prob)
@@ -56,6 +73,75 @@ class Dropout_defense:
         image_set = image.clone().repeat(ensemble_size,1,1,1)
         output = self.model(image_set)
         return output
+
+    def filter_accuracy(self, 
+                        dropout_prob, 
+                        ensemble_size,
+                        original_label, 
+                        target_label,
+                        method):
+        '''
+        Computes the percentage of adversarial images that were successfully
+        thwarted
+        '''
+
+        # Have several options for method:
+        # - 
+        # - 
+        # - 
+
+        pass
+
+    def uncertainty_score(self, ensemble_output):
+        '''
+        Computes the uncertainty score for a single image
+        Arguments:
+        - ensemble_output: the output from the set of forward passes for a
+                           single example. This will be a set of n softmax 
+                           probabilities, where n is the ensemble size.
+        '''
+        pass
+
+
+    def heatmap(self):
+        '''
+        '''
+        pass
+
+
+
+    def visualize(self, 
+                  dropout_prob, 
+                  original_label, 
+                  target_label,
+                  ensemble_size, 
+                  num_to_plot=25):
+        '''
+        Plots ensemble outputs for a random batch of data.
+        Arguments:
+        - input: the image for which we computed a forward pass
+        - outputs: the output from a forward pass. Should be of shape (n,k),
+                   where n = ensemble_size, and k = number of classes
+        '''
+
+        # Reset model to have proper dropout probability
+        self.reset_model(dropout_prob=dropout_prob)
+
+        for (i, data_tuple) in enumerate(self.data[(original_label,target_label)]):
+            if i >= num_to_plot:
+                break
+            original, pert, adv, orig_label, target_label = data_tuple # unpack
+            original_ensemble = torch.argmax(self.ensemble_forward_pass(
+                                             original, ensemble_size), dim=1)
+            adv_ensemble = torch.argmax(self.ensemble_forward_pass(
+                                        adv, ensemble_size), dim=1)
+
+            original_counts = np.eye(10)[original_ensemble.numpy()].sum(axis=0)
+            adv_counts = np.eye(10)[adv_ensemble.numpy()].sum(axis=0)
+
+            self.plot_image(original, adv, 
+                            original_counts, adv_counts, 
+                            original_label, target_label)
 
 
     def plot_image(self, 
@@ -117,59 +203,6 @@ class Dropout_defense:
         plt.show()
 
 
-    def visualize(self, 
-                  dropout_prob, 
-                  original_label, 
-                  target_label,
-                  ensemble_size, 
-                  num_to_plot=25):
-        '''
-        Plots ensemble outputs for a random batch of data.
-        Arguments:
-        - input: the image for which we computed a forward pass
-        - outputs: the output from a forward pass. Should be of shape (n,k),
-                   where n = ensemble_size, and k = number of classes
-        '''
-        # Get data
-        # Note: we make batch size equal to one
-        data = utils.get_adv_data(self.file_name, 
-                                   original_label=original_label, 
-                                   target_label=target_label, 
-                                   batch_size=1)
-
-        # Reset model to have proper dropout probability
-        self.reset_model(dropout_prob=dropout_prob)
-
-        for (i, data_tuple) in enumerate(data):
-            if i >= num_to_plot:
-                break
-            original, pert, adv, orig_label, target_label = data_tuple # unpack
-            original_ensemble = torch.argmax(self.ensemble_forward_pass(
-                                             original, ensemble_size), dim=1)
-            adv_ensemble = torch.argmax(self.ensemble_forward_pass(
-                                        adv, ensemble_size), dim=1)
-
-            original_counts = np.eye(10)[original_ensemble.numpy()].sum(axis=0)
-            adv_counts = np.eye(10)[adv_ensemble.numpy()].sum(axis=0)
-
-            self.plot_image(original, adv, 
-                            original_counts, adv_counts, 
-                            original_label, target_label)
-
-
-    def get_data_subset(self, original_label, target_label):
-        '''
-        Returns a subset of the data where the original label was 
-        original_label and the target label was target_label
-        Arguments
-        - original_label: the original label of images
-        - target_label: the label that adversaries trick model into predicting
-        '''
-        # Maybe do this later. It would prevent you having to read in the 
-        # entire dataset and then subset it each time. But this isn't too
-        # big of a deal
-        pass
-
 
     def make_dataset(self):
         '''
@@ -178,9 +211,6 @@ class Dropout_defense:
         '''
         pass
 
-# when performing the ensemble forward pass, make a "batch" containing 
-# several copies of the same image. This will make things more 
-# computationally efficient.
 
 
 
