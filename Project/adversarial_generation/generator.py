@@ -288,7 +288,7 @@ class Generator:
                 _sum += len(orig)
             
             running_total += _sum/10.0
-            print('Finished batch {}. Generated {}/{} images. Time elapsed: {:.1f} minutes'.format(
+            print('Finished batch {}. Generated {:.2f}/{} images. Time elapsed: {:.1f} minutes'.format(
                         i+1, running_total, num_examples, (time.time()-start)/60. ))
             if running_total > num_examples:
                 break

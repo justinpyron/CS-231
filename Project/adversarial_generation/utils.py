@@ -39,17 +39,17 @@ class cifar(nn.Module):
 
     def forward(self, x):
         x = F.relu(self.conv2(self.conv1(x)))
-        x = F.max_pool2d( F.dropout(x, p=self.dropout_prob), 2)
+        x = F.max_pool2d( F.dropout(x, p=self.dropout_prob, training=self.training), 2)
 
         x = F.relu(self.conv4(self.conv3(x)))
-        x = F.max_pool2d( F.dropout(x, p=self.dropout_prob), 2)
+        x = F.max_pool2d( F.dropout(x, p=self.dropout_prob, training=self.training), 2)
 
         x = F.relu(self.conv6(self.conv5(x)))
-        x = F.max_pool2d( F.dropout(x, p=self.dropout_prob), 2)
+        x = F.max_pool2d( F.dropout(x, p=self.dropout_prob, training=self.training), 2)
         
         x = x.view(x.size(0),-1)
         x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.dropout_prob)
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
 
         x = self.fc2(x)
         x = F.log_softmax(x, dim=1)
@@ -77,14 +77,14 @@ class mnist(nn.Module):
 
     def forward(self, x):
         x = F.relu(self.conv2(self.conv1(x)))
-        x = F.max_pool2d( F.dropout(x, p=self.dropout_prob), 2)
+        x = F.max_pool2d( F.dropout(x, p=self.dropout_prob, training=self.training), 2)
 
         x = F.relu(self.conv4(self.conv3(x)))
-        x = F.max_pool2d( F.dropout(x, p=self.dropout_prob), 2)
+        x = F.max_pool2d( F.dropout(x, p=self.dropout_prob, training=self.training), 2)
 
         x = x.view(-1, 20*4*4)
         x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.dropout_prob)
+        x = F.dropout(x, p=self.dropout_prob, training=self.training)
 
         x = self.fc2(x)
         return F.log_softmax(x, dim=1)
