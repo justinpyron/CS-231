@@ -268,19 +268,28 @@ class Generator:
         
         # Iterate through dataset
         for i, (image_batch,label_batch) in enumerate(self.data):
+            _sum = 0
             # Generate adversarial images for each class label
             for target in range(10):
                 batch_data = self.fool(image_batch, label_batch, target, epsilon=epsilon, 
                                        num_iters=num_iters, max_L2_norm=max_L2_norm)
                 orig, pert, adv, orig_label, target_label = batch_data
+
+                if len(orig) == 0:
+                    # If no adversaries were generated in that batch,
+                    # continue to the next target
+                    continue
+
                 originals.append(orig.numpy())
                 perturbations.append(pert.numpy())
                 adversaries.append(adv.numpy())
                 original_labels.append(orig_label.numpy())
                 target_labels.append(target_label.numpy())
+                _sum += len(orig)
             
-            running_total += orig.size(0)
-            print('Finished batch {}. Generated {}/{} images'.format(i+1, running_total, num_examples))
+            running_total += _sum/10.0
+            print('Finished batch {}. Generated {}/{} images. Time elapsed: {:.1f} minutes'.format(
+                        i+1, running_total, num_examples, (time.time()-start)/60. ))
             if running_total > num_examples:
                 break
         
@@ -298,7 +307,8 @@ class Generator:
         
         np.savez(file_name, **arrays)
         print('Took {:.2f} minutes'.format( (time.time() - start)/60.0 ))
-        
+        print('Data saved to file: {}.npz'.format(file_name))
+
 
 
 

@@ -92,8 +92,7 @@ class mnist(nn.Module):
 #================================================================
 
 
-
-def trained_model(dataset, path_to_pretrained=None):
+def trained_model(dataset, dropout_prob=0.1, path_to_pretrained=None):
     '''
     Return a pre-trained model corresponding to either CIFAR10 or MNIST
     Arguments:
@@ -112,14 +111,14 @@ def trained_model(dataset, path_to_pretrained=None):
 
     if dataset == 'cifar':
         # Initialize model
-        model = cifar(dropout_prob=0.1)
+        model = cifar(dropout_prob=dropout_prob)
         # Load pre-trained parameters
         model.load_state_dict(torch.load(path_to_pretrained)['state_dict'])
         return model
 
     if dataset == 'mnist':
         # Initialize model
-        model = mnist(dropout_prob=0.1)
+        model = mnist(dropout_prob=dropout_prob)
         # Load pre-trained parameters
         model.load_state_dict(torch.load(path_to_pretrained)['state_dict'])
         return model
