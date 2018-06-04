@@ -145,13 +145,13 @@ class Dropout_defense:
         self.corrected_array = corrected_array
         self.fooled_array = fooled_array
 
-        seaborn.heatmap(self.corrected_array, linewidth=0.5, cmap='hot')
+        seaborn.heatmap(self.corrected_array, linewidth=0.5, cmap='gist_rainbow')
         plt.title('Percentage Corrected')
         plt.xlabel('Target Label')
         plt.ylabel('Original Label')
         plt.show()
 
-        seaborn.heatmap(self.fooled_array, linewidth=0.5, cmap='hot')
+        seaborn.heatmap(self.fooled_array, linewidth=0.5, cmap='gist_rainbow')
         plt.title('Percentage Fooled')
         plt.xlabel('Target Label')
         plt.ylabel('Original Label')
@@ -230,13 +230,13 @@ class Dropout_defense:
         self.orig_score_array = orig_array
         self.adv_score_array = adv_array
 
-        seaborn.heatmap(self.orig_score_array, linewidth=0.5, cmap='hot')
+        seaborn.heatmap(self.orig_score_array, linewidth=0.5, cmap='gist_rainbow')
         plt.title('Average Uncertainty Score of Originals')
         plt.xlabel('Target Label')
         plt.ylabel('Original Label')
         plt.show()
 
-        seaborn.heatmap(self.fooled_array, linewidth=0.5, cmap='hot')
+        seaborn.heatmap(self.adv_score_array, linewidth=0.5, cmap='gist_rainbow')
         plt.title('Average Uncertainty Score of Adversaries')
         plt.xlabel('Target Label')
         plt.ylabel('Original Label')
