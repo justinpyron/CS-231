@@ -156,7 +156,7 @@ class Adversary_Data(Dataset):
     '''
     A customized data set for adversarial images
     '''
-    def __init__(self, file_name, original_label=None, target_label=None):
+    def __init__(self, file_name, original_label=None, target_label=None, num_examples=None):
         '''
         Intialize the adversarial image dataset
         Args:
@@ -188,6 +188,13 @@ class Adversary_Data(Dataset):
         self.originals = torch.from_numpy(data['original_images'][mask])
         self.perturbations = torch.from_numpy(data['perturbations'][mask])
         self.adversaries = torch.from_numpy(data['adversarial_images'][mask])
+
+        if num_examples is not None:
+            self.original_labels = self.original_labels[:num_examples]
+            self.target_labels = self.target_labels[:num_examples]
+            self.originals = self.originals[:num_examples]
+            self.perturbations = self.perturbations[:num_examples]
+            self.adversaries = self.adversaries[:num_examples]
         
         self.len = self.originals.size(0)
         
@@ -209,7 +216,7 @@ class Adversary_Data(Dataset):
         return self.len
 
 
-def get_adv_data(file_name, original_label=None, target_label=None, batch_size=50):
+def get_adv_data(file_name, original_label=None, target_label=None, num_examples=None, batch_size=50):
     '''
     Returns a Pytorch dataset object containing data from an adversarial 
     dataset stored at file specified by file_name
@@ -220,7 +227,7 @@ def get_adv_data(file_name, original_label=None, target_label=None, batch_size=5
     - batch_size: size of batch
     '''
 
-    data = Adversary_Data(file_name, original_label, target_label)
+    data = Adversary_Data(file_name, original_label, target_label, num_examples)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=True, num_workers=1)
     return dataloader
 

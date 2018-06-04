@@ -4,6 +4,7 @@ import time
 import matplotlib.pyplot as plt
 import utils
 from matplotlib import gridspec
+import seaborn
 
 
 class Dropout_defense:
@@ -12,7 +13,8 @@ class Dropout_defense:
     '''
     def __init__(self, 
                  dataset, 
-                 file_name=None):
+                 file_name=None,
+                 num_examples=None):
         '''
         Arguments:
         - dataset: 'cifar' or 'mnist'
@@ -38,16 +40,23 @@ class Dropout_defense:
         # Load data
         start = time.time()
         print('Loading data...')
+        print('  | 0 1 2 3 4 5 6 7 8 9')
+        print('-----------------------')
         self.data = dict()
         for orig in range(10):
+            print('{} | '.format(orig), end='')
             for adv in range(10):
                 if adv == orig:
+                    print('  '.format(), end='')
                     continue
-                print('Loading pair ({},{})'.format(orig,adv))
+                print('1 '.format(), end='')
+                # print('Loading pair ({},{})'.format(orig,adv))
                 self.data[(orig,adv)] = utils.get_adv_data(self.file_name, 
                                                            original_label=orig, 
                                                            target_label=adv,
+                                                           num_examples=num_examples,
                                                            batch_size=1)
+            print('')
         print('Data loaded. Took {:.1f} seconds.'.format(time.time() - start))
 
 
@@ -72,27 +81,84 @@ class Dropout_defense:
         '''
         image_set = image.clone().repeat(ensemble_size,1,1,1)
         output = self.model(image_set)
-        return output
+        return output.detach()
 
     def filter_accuracy(self, 
                         dropout_prob, 
                         ensemble_size,
                         original_label, 
-                        target_label,
-                        method):
+                        target_label):
         '''
         Computes the percentage of adversarial images that were successfully
         thwarted
+        Arguments:
+        -
         '''
+        # Reset model to have proper dropout probability
+        self.reset_model(dropout_prob=dropout_prob)
 
-        # Have several options for method:
-        # - 
-        # - 
-        # - 
+        num_corrected = 0
+        num_fooled = 0
 
-        pass
+        data = self.data[(original_label, target_label)]
+        for (i, data_tuple) in enumerate(data):
+            original, pert, adv, orig_label, target_label = data_tuple # unpack
+            ensemble = torch.argmax(self.ensemble_forward_pass(
+                                        adv, ensemble_size), dim=1)
+            counts = np.eye(10)[ensemble.numpy()].sum(axis=0)
+            pred = np.argmax(counts)
+            if pred == original_label:
+                num_corrected += 1
+            if pred == target_label:
+                num_fooled += 1
 
-    def uncertainty_score(self, ensemble_output):
+        return (num_corrected/len(data), num_fooled/len(data))
+
+
+    def filter_heatmap(self, dropout_prob, ensemble_size):
+        '''
+        Visualize how well dropout thwarts adversarial images for each
+        (original, target) pair
+        '''
+        corrected_array = np.zeros((10,10))
+        fooled_array = np.zeros((10,10))
+
+        start = time.time()
+        print('  | 0 1 2 3 4 5 6 7 8 9')
+        print('-----------------------')
+        for orig in range(10):
+            print('{} | '.format(orig), end='')
+            for target in range(10):
+                if target == orig:
+                    print('  '.format(), end='')
+                    continue
+                print('1 '.format(), end='')
+                corrected, fooled = self.filter_accuracy(dropout_prob=dropout_prob,
+                                                         ensemble_size=ensemble_size,
+                                                         original_label=orig,
+                                                         target_label=target)
+                corrected_array[orig,target] = corrected
+                fooled_array[orig,target] = fooled
+            print('')
+        print('Took {:.2f} minutes'.format( (time.time() - start)/60. ))
+
+        self.corrected_array = corrected_array
+        self.fooled_array = fooled_array
+
+        seaborn.heatmap(self.corrected_array, linewidth=0.5, cmap='hot')
+        plt.title('Percentage Corrected')
+        plt.xlabel('Target Label')
+        plt.ylabel('Original Label')
+        plt.show()
+
+        seaborn.heatmap(self.fooled_array, linewidth=0.5, cmap='hot')
+        plt.title('Percentage Fooled')
+        plt.xlabel('Target Label')
+        plt.ylabel('Original Label')
+        plt.show()
+
+
+    def get_uncertainty_score(self, ensemble_output, method):
         '''
         Computes the uncertainty score for a single image
         Arguments:
@@ -100,13 +166,81 @@ class Dropout_defense:
                            single example. This will be a set of n softmax 
                            probabilities, where n is the ensemble size.
         '''
-        pass
+        preds = torch.argmax(ensemble_output, dim=1).numpy()
+
+        if method == 'variance':
+            return preds.var()
+
+        if method == 'entropy':
+            counts = np.eye(10)[preds].sum(axis=0)
+            probs = counts/counts.sum()
+            return (probs * np.log(probs)).sum()
 
 
-    def heatmap(self):
+    def uncertainty(self, ensemble_size, method, original_label, target_label):
         '''
+        Returns the average uncertainty score for the input (original_label, target_label) pair
         '''
-        pass
+        orig_uncertainty = list()
+        adv_uncertainty = list()
+
+        data = self.data[(original_label, target_label)]
+        for (i, data_tuple) in enumerate(data):
+            original, pert, adv, orig_label, target_label = data_tuple # unpack
+
+            orig_output = self.ensemble_forward_pass(original, ensemble_size)
+            adv_output = self.ensemble_forward_pass(adv, ensemble_size)
+
+            orig_uncertainty.append(self.get_uncertainty_score(orig_output,method=method))
+            adv_uncertainty.append(self.get_uncertainty_score(adv_output,method=method))
+
+        return (np.array(orig_uncertainty).mean(), np.array(adv_uncertainty).mean())
+
+
+    def uncertainty_heatmap(self, dropout_prob, ensemble_size, method):
+        '''
+        Visualize how well dropout thwarts adversarial images for each
+        (original, target) pair
+        '''
+        # Reset model to have proper dropout probability
+        self.reset_model(dropout_prob=dropout_prob)
+
+        orig_array = np.zeros((10,10))
+        adv_array = np.zeros((10,10))
+
+        start = time.time()
+        print('  | 0 1 2 3 4 5 6 7 8 9')
+        print('-----------------------')
+        for orig in range(10):
+            print('{} | '.format(orig), end='')
+            for target in range(10):
+                if target == orig:
+                    print('  '.format(), end='')
+                    continue
+                print('1 '.format(), end='')
+                orig_score, adv_score = self.uncertainty(ensemble_size=ensemble_size,
+                                                         method=method,
+                                                         original_label=orig,
+                                                         target_label=target)
+                orig_array[orig,target] = orig_score
+                adv_array[orig,target] = adv_score
+            print('')
+        print('Took {:.2f} minutes'.format( (time.time() - start)/60. ))
+
+        self.orig_score_array = orig_array
+        self.adv_score_array = adv_array
+
+        seaborn.heatmap(self.orig_score_array, linewidth=0.5, cmap='hot')
+        plt.title('Average Uncertainty Score of Originals')
+        plt.xlabel('Target Label')
+        plt.ylabel('Original Label')
+        plt.show()
+
+        seaborn.heatmap(self.fooled_array, linewidth=0.5, cmap='hot')
+        plt.title('Average Uncertainty Score of Adversaries')
+        plt.xlabel('Target Label')
+        plt.ylabel('Original Label')
+        plt.show()    
 
 
 
@@ -114,14 +248,15 @@ class Dropout_defense:
                   dropout_prob, 
                   original_label, 
                   target_label,
-                  ensemble_size, 
+                  ensemble_size,
+                  type='prediction', 
                   num_to_plot=25):
         '''
         Plots ensemble outputs for a random batch of data.
         Arguments:
-        - input: the image for which we computed a forward pass
-        - outputs: the output from a forward pass. Should be of shape (n,k),
-                   where n = ensemble_size, and k = number of classes
+        - type: whether to plot a histogram of predictions or of the
+                cumulative probability mass for each class across the ensemble
+
         '''
 
         # Reset model to have proper dropout probability
@@ -131,17 +266,24 @@ class Dropout_defense:
             if i >= num_to_plot:
                 break
             original, pert, adv, orig_label, target_label = data_tuple # unpack
-            original_ensemble = torch.argmax(self.ensemble_forward_pass(
-                                             original, ensemble_size), dim=1)
-            adv_ensemble = torch.argmax(self.ensemble_forward_pass(
-                                        adv, ensemble_size), dim=1)
 
-            original_counts = np.eye(10)[original_ensemble.numpy()].sum(axis=0)
-            adv_counts = np.eye(10)[adv_ensemble.numpy()].sum(axis=0)
+            if type == 'prediction':
+                original_ensemble = torch.argmax(self.ensemble_forward_pass(
+                                                 original, ensemble_size), dim=1)
+                adv_ensemble = torch.argmax(self.ensemble_forward_pass(
+                                            adv, ensemble_size), dim=1)
+                original_counts = np.eye(10)[original_ensemble.numpy()].sum(axis=0)
+                adv_counts = np.eye(10)[adv_ensemble.numpy()].sum(axis=0)
+                self.plot_image(original, adv, 
+                                original_counts/original_counts.sum(), adv_counts/adv_counts.sum(), 
+                                original_label, target_label)
 
-            self.plot_image(original, adv, 
-                            original_counts, adv_counts, 
-                            original_label, target_label)
+            if type == 'probability':
+                original_ensemble = self.ensemble_forward_pass(original, ensemble_size).numpy()
+                adv_ensemble = self.ensemble_forward_pass(adv, ensemble_size).numpy()
+                self.plot_image(original, adv, 
+                                np.exp(original_ensemble).sum(axis=0), np.exp(adv_ensemble).sum(axis=0), 
+                                original_label, target_label)
 
 
     def plot_image(self, 
@@ -182,7 +324,7 @@ class Dropout_defense:
         plt.subplot(gs[2])
         colors = ['lightgrey']*10
         colors[original_label] = '#1f77b4' # blue
-        plt.bar(range(10), original_output/original_output.sum(), color=colors)
+        plt.bar(range(10), original_output, color=colors)
         plt.xticks(range(10))
         plt.xlabel('Predicted Class')
         plt.ylabel('Fraction of Predictions')
@@ -193,7 +335,7 @@ class Dropout_defense:
         colors = ['lightgrey']*10
         colors[original_label] = '#1f77b4' # blue
         colors[target_label] = '#ff7f0e' # orange
-        plt.bar(range(10), adv_output/adv_output.sum(), color=colors)
+        plt.bar(range(10), adv_output, color=colors)
         plt.xticks(range(10))
         plt.xlabel('Predicted Class')
         plt.ylabel('Fraction of Predictions')
